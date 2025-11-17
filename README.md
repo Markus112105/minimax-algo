@@ -18,20 +18,23 @@ An interactive Connect 4 game powered by an optimized minimax search. The SFML f
   ```
 
 ## Build
-### Game client
+Use the provided `Makefile` (defaults to `build/` as the output directory and `-std=c++17`).
+
 ```bash
-g++ main.cpp -o connect4 -lsfml-graphics -lsfml-window -lsfml-system
+# Build both the SFML client and the CLI tester
+make all
+
+# or build a single target
+make connect4
+make tester
 ```
 
-### Runtime tester
-```bash
-g++ tester.cpp -o tester -std=c++17
-```
+Executables are placed under `build/` by default (`build/connect4`, `build/tester`). Override `BIN_DIR` when invoking `make` if you prefer a different location, e.g. `make BIN_DIR=. all`.
 
 ## Run the game
 Launch the executable with three feature toggles (1 = enable, 0 = disable):
 ```bash
-./connect4 <alpha-beta> <mid-row-first> <early-win>
+./build/connect4 <alpha-beta> <mid-row-first> <early-win>
 ```
 
 | Arg | Toggle | Description |
@@ -41,9 +44,9 @@ Launch the executable with three feature toggles (1 = enable, 0 = disable):
 | `early-win` | Early-Win Detection | Checks for immediate wins/losses before deepening the tree. |
 
 Examples:
-- All optimizations: `./connect4 1 1 1`
-- Alpha-Beta only: `./connect4 1 0 0`
-- Mid-row ordering only: `./connect4 0 1 0`
+- All optimizations: `./build/connect4 1 1 1`
+- Alpha-Beta only: `./build/connect4 1 0 0`
+- Mid-row ordering only: `./build/connect4 0 1 0`
 
 Recommended depths (`main.cpp:MAX_DEPTH` macro):
 - **No optimizations:** Depth 6 for responsive play, absolute max ~9–11 (very slow).
