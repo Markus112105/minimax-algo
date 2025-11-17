@@ -22,11 +22,21 @@ static bool USE_MOVE_ORDER = true;
 static bool USE_EARLY_WIN  = true;
 static std::vector<int> columnOrder;
 
-// drop a piece
-bool dropPiece(Board &b, int c, int p) {
+// drop a piece and tell the caller the row so we can undo without copying the whole board
+int dropPiece(Board &b, int c, int p) {
     for(int r=ROWS-1; r>=0; --r)
-        if(b[r][c]==NONE) { b[r][c]=p; return true; }
-    return false;
+        if(b[r][c]==NONE) { b[r][c]=p; return r; }
+    return -1;
+}
+
+void undoMove(Board &b, int c, int r) {
+    if(r>=0 && r<ROWS) b[r][c]=NONE;
+}
+
+bool hasValidMove(const Board &b) {
+    for(int c=0;c<COLS;++c)
+        if(b[0][c]==NONE) return true;
+    return false; // lets minimax return 0 for draws instead of propagating bogus scores
 }
 
 // valid?
@@ -52,11 +62,14 @@ bool checkWin(const Board &b, int p) {
 }
 
 // window score
-int evaluateWindow(const std::vector<int>&w) {
-    int score=0,
-        ai   = std::count(w.begin(), w.end(), AI),
-        hu   = std::count(w.begin(), w.end(), HUMAN),
-        em   = std::count(w.begin(), w.end(), NONE);
+int evaluateWindow(int a,int b,int c,int d) {
+    int vals[4]={a,b,c,d};
+    int score=0, ai=0, hu=0, em=0;
+    for(int cell:vals){
+        if(cell==AI) ++ai;
+        else if(cell==HUMAN) ++hu;
+        else ++em;
+    }
     if(ai&&hu) return 0;
     if(ai==3&&em==1) score+=51; else if(ai==2&&em==2) score+=17;
     if(hu==3&&em==1) score-=51; else if(hu==2&&em==2) score-=17;
@@ -77,41 +90,45 @@ int evaluateBoard(const Board &b) {
     // horiz
     for(int r=0;r<ROWS;++r)
       for(int c=0;c<=COLS-4;++c)
-        sc += evaluateWindow({b[r][c],b[r][c+1],b[r][c+2],b[r][c+3]});
+        sc += evaluateWindow(b[r][c],b[r][c+1],b[r][c+2],b[r][c+3]); // avoid per-window vector allocations in the tight loop
     // vert
     for(int c=0;c<COLS;++c)
       for(int r=0;r<=ROWS-4;++r)
-        sc += evaluateWindow({b[r][c],b[r+1][c],b[r+2][c],b[r+3][c]});
+        sc += evaluateWindow(b[r][c],b[r+1][c],b[r+2][c],b[r+3][c]);
     // diag SE
     for(int r=0;r<=ROWS-4;++r)
       for(int c=0;c<=COLS-4;++c)
-        sc += evaluateWindow({b[r][c],b[r+1][c+1],b[r+2][c+2],b[r+3][c+3]});
+        sc += evaluateWindow(b[r][c],b[r+1][c+1],b[r+2][c+2],b[r+3][c+3]);
     // diag NE
     for(int r=3;r<ROWS;++r)
       for(int c=0;c<=COLS-4;++c)
-        sc += evaluateWindow({b[r][c],b[r-1][c+1],b[r-2][c+2],b[r-3][c+3]});
+        sc += evaluateWindow(b[r][c],b[r-1][c+1],b[r-2][c+2],b[r-3][c+3]);
     return sc;
 }
 
 // minimax
-int minimax(Board b,int depth,int alpha,int beta,bool maxP) {
+int minimax(Board &b,int depth,int alpha,int beta,bool maxP) {
     if(checkWin(b,AI))    return WIN_SCORE+depth;
     if(checkWin(b,HUMAN)) return -WIN_SCORE-depth;
     if(depth==0) return evaluateBoard(b);
+    if(!hasValidMove(b)) return 0;
 
     if(maxP) {
         int best=INT_MIN;
         if(USE_EARLY_WIN) {
             for(int i=0;i<COLS;++i){
                 int c=columnOrder[i]; if(!isValidMove(b,c)) continue;
-                Board t=b; dropPiece(t,c,AI);
-                if(checkWin(t,AI)) return WIN_SCORE+depth;
+                int row=dropPiece(b,c,AI);
+                bool win=checkWin(b,AI);
+                undoMove(b,c,row);
+                if(win) return WIN_SCORE+depth;
             }
         }
         for(int i=0;i<COLS;++i){
             int c=columnOrder[i]; if(!isValidMove(b,c)) continue;
-            Board t=b; dropPiece(t,c,AI);
-            int v=minimax(t,depth-1,alpha,beta,false);
+            int row=dropPiece(b,c,AI);
+            int v=minimax(b,depth-1,alpha,beta,false);
+            undoMove(b,c,row);
             best=std::max(best,v);
             if(USE_ALPHA_BETA){
                 alpha=std::max(alpha,v);
@@ -124,14 +141,17 @@ int minimax(Board b,int depth,int alpha,int beta,bool maxP) {
         if(USE_EARLY_WIN) {
             for(int i=0;i<COLS;++i){
                 int c=columnOrder[i]; if(!isValidMove(b,c)) continue;
-                Board t=b; dropPiece(t,c,HUMAN);
-                if(checkWin(t,HUMAN)) return -WIN_SCORE-depth;
+                int row=dropPiece(b,c,HUMAN);
+                bool win=checkWin(b,HUMAN);
+                undoMove(b,c,row);
+                if(win) return -WIN_SCORE-depth;
             }
         }
         for(int i=0;i<COLS;++i){
             int c=columnOrder[i]; if(!isValidMove(b,c)) continue;
-            Board t=b; dropPiece(t,c,HUMAN);
-            int v=minimax(t,depth-1,alpha,beta,true);
+            int row=dropPiece(b,c,HUMAN);
+            int v=minimax(b,depth-1,alpha,beta,true);
+            undoMove(b,c,row);
             best=std::min(best,v);
             if(USE_ALPHA_BETA){
                 beta=std::min(beta,v);
@@ -143,14 +163,18 @@ int minimax(Board b,int depth,int alpha,int beta,bool maxP) {
 }
 
 // pick best column (timed only)
-std::pair<int,int> getBestMove(const Board &b) {
-    int bestScore=INT_MIN, bestCol=0;
+std::pair<int,int> getBestMove(Board b) {
+    int bestScore=INT_MIN, bestCol=-1;
+    bool moveFound=false;
     for(int i=0;i<COLS;++i){
         int c=columnOrder[i]; if(!isValidMove(b,c)) continue;
-        Board t=b; dropPiece(t,c,AI);
-        int v = minimax(t,MAX_DEPTH-1,INT_MIN,INT_MAX,false);
+        moveFound=true;
+        int row=dropPiece(b,c,AI);
+        int v = minimax(b,MAX_DEPTH-1,INT_MIN,INT_MAX,false);
+        undoMove(b,c,row);
         if(v>bestScore){ bestScore=v; bestCol=c; }
     }
+    if(!moveFound) return {-1,0};
     return {bestCol,bestScore};
 }
 int main(int argc, char* argv[]){

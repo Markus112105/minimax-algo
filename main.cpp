@@ -51,16 +51,24 @@ void drawBoard(sf::RenderWindow &window, const Board &board)
     // location of your Arial.ttf
     if (DRAW_COL_LABELS)
     {
-        for (int c = 0; c < COLS; ++c)
+        static sf::Font labelFont;                        // cache the font so we do not hit disk every frame
+        static bool fontInitialized = false;
+        static bool fontLoaded = false;
+        if (!fontInitialized)
         {
-            sf::Text label;
-            sf::Font font;
-            if (!font.loadFromFile(ARIAL))
+            fontLoaded = labelFont.loadFromFile(ARIAL);
+            if (!fontLoaded)
             {
                 std::cerr << "Failed to load Arial\n";
             }
-
-            label.setFont(font);
+            fontInitialized = true;
+        }
+        for (int c = 0; c < COLS; ++c)
+        {
+            if (!fontLoaded)
+                break;
+            sf::Text label;
+            label.setFont(labelFont);
             label.setString(std::to_string(c));
             label.setCharacterSize(24);
             label.setFillColor(sf::Color::White);
@@ -88,17 +96,35 @@ bool isValidMove(const Board &board, int col)
     return col >= 0 && col < COLS && board[0][col] == NONE;
 }
 
-bool makeMove(Board &board, int col, int player)
+int makeMove(Board &board, int col, int player)
 {
     for (int r = ROWS - 1; r >= 0; --r)
     {
         if (board[r][col] == NONE)
         {
             board[r][col] = player;
-            return true;
+            return r; // returning the row lets us undo quickly and avoid copying the entire board
         }
     }
-    return false;
+    return -1;
+}
+
+void undoMove(Board &board, int col, int row)
+{
+    if (row >= 0 && row < ROWS)
+    {
+        board[row][col] = NONE;
+    }
+}
+
+bool hasValidMove(const Board &board)
+{
+    for (int c = 0; c < COLS; ++c)
+    {
+        if (board[0][c] == NONE)
+            return true;
+    }
+    return false; // lets minimax detect draws instead of bubbling up bogus +/-INF
 }
 
 bool checkWin(const Board &board, int player)
@@ -151,12 +177,22 @@ bool checkWin(const Board &board, int player)
     return false;
 }
 
-int evaluateWindow(const std::vector<int> &window)
+int evaluateWindow(int a, int b, int c, int d)
 {
+    int values[4] = {a, b, c, d};
     int score = 0;
-    int countAI = std::count(window.begin(), window.end(), AI);
-    int countHUMAN = std::count(window.begin(), window.end(), HUMAN);
-    int countEmpty = std::count(window.begin(), window.end(), NONE);
+    int countAI = 0;
+    int countHUMAN = 0;
+    int countEmpty = 0;
+    for (int cell : values)
+    {
+        if (cell == AI)
+            ++countAI;
+        else if (cell == HUMAN)
+            ++countHUMAN;
+        else
+            ++countEmpty;
+    }
 
     if (countAI > 0 && countHUMAN > 0)
         return 0; // Mixed window, blocked (equal here)
@@ -208,32 +244,28 @@ int evaluateBoard(const Board &board)
     { // pass in all possible wins to the evalutor which will see if you cant win there, or there is 2 or 1 empty spots there
         for (int c = 0; c <= COLS - 4; ++c)
         {
-            std::vector<int> window = {board[r][c], board[r][c + 1], board[r][c + 2], board[r][c + 3]}; // columns
-            score += evaluateWindow(window);
+            score += evaluateWindow(board[r][c], board[r][c + 1], board[r][c + 2], board[r][c + 3]); // avoid tiny vector allocations in the hot path
         }
     }
     for (int c = 0; c < COLS; ++c)
     {
         for (int r = 0; r <= ROWS - 4; ++r)
         {
-            std::vector<int> window = {board[r][c], board[r + 1][c], board[r + 2][c], board[r + 3][c]}; // rows
-            score += evaluateWindow(window);
+            score += evaluateWindow(board[r][c], board[r + 1][c], board[r + 2][c], board[r + 3][c]);
         }
     }
     for (int r = 0; r <= ROWS - 4; ++r)
     {
         for (int c = 0; c <= COLS - 4; ++c)
         {
-            std::vector<int> window = {board[r][c], board[r + 1][c + 1], board[r + 2][c + 2], board[r + 3][c + 3]}; // SE
-            score += evaluateWindow(window);
+            score += evaluateWindow(board[r][c], board[r + 1][c + 1], board[r + 2][c + 2], board[r + 3][c + 3]);
         }
     }
     for (int r = 3; r < ROWS; ++r)
     {
         for (int c = 0; c <= COLS - 4; ++c)
         {
-            std::vector<int> window = {board[r][c], board[r - 1][c + 1], board[r - 2][c + 2], board[r - 3][c + 3]}; // NE
-            score += evaluateWindow(window);
+            score += evaluateWindow(board[r][c], board[r - 1][c + 1], board[r - 2][c + 2], board[r - 3][c + 3]);
         }
     }
     return score;
@@ -245,7 +277,7 @@ int evaluateBoard(const Board &board)
 // alpha: the best already explored option for the maximizer
 // beta:  the best already explored option for the minimizer
 // maximizingPlayer: true if it's AI's turn, false if it's HUMAN's turn
-int minimax(Board board, int depth, int alpha, int beta, bool maximizingPlayer)
+int minimax(Board &board, int depth, int alpha, int beta, bool maximizingPlayer)
 {
     // Base case: if someone has won, return a large positive or negative score
     // Use depth to reward faster wins (higher depth left = win is sooner)
@@ -257,6 +289,9 @@ int minimax(Board board, int depth, int alpha, int beta, bool maximizingPlayer)
     // If no one has won and we're at max depth, return the leaf node strength
     if (depth == 0)
         return evaluateBoard(board);
+
+    if (!hasValidMove(board))
+        return 0; // board is full -> draw, so stop bubbling INT_MIN/INT_MAX upward
 
     if (maximizingPlayer)
     {
@@ -270,11 +305,12 @@ int minimax(Board board, int depth, int alpha, int beta, bool maximizingPlayer)
                 int col = columnOrder[idx];
                 if (!isValidMove(board, col))
                     continue;
-                Board temp = board;
-                makeMove(temp, col, AI);
-                if (checkWin(temp, AI))
+                int row = makeMove(board, col, AI);
+                bool win = checkWin(board, AI);
+                undoMove(board, col, row);
+                if (win)
                 {
-                    return WIN_SCORE + depth;
+                    return WIN_SCORE + depth; // bail immediately instead of recursing
                 }
             }
         }
@@ -286,11 +322,11 @@ int minimax(Board board, int depth, int alpha, int beta, bool maximizingPlayer)
             if (!isValidMove(board, col))
                 continue;
 
-            Board temp = board;
-            makeMove(temp, col, AI);
+            int row = makeMove(board, col, AI);
 
             // Recursively evaluate this move with the opponent's turn next
-            int score = minimax(temp, depth - 1, alpha, beta, false);
+            int score = minimax(board, depth - 1, alpha, beta, false);
+            undoMove(board, col, row);
 
             // Update maxEval to track the best score so far
             maxEval = std::max(maxEval, score);
@@ -319,9 +355,10 @@ int minimax(Board board, int depth, int alpha, int beta, bool maximizingPlayer)
                 int col = columnOrder[idx];
                 if (!isValidMove(board, col))
                     continue;
-                Board temp = board;
-                makeMove(temp, col, HUMAN);
-                if (checkWin(temp, HUMAN))
+                int row = makeMove(board, col, HUMAN);
+                bool win = checkWin(board, HUMAN);
+                undoMove(board, col, row);
+                if (win)
                 {
                     return -WIN_SCORE - depth;
                 }
@@ -334,10 +371,10 @@ int minimax(Board board, int depth, int alpha, int beta, bool maximizingPlayer)
             if (!isValidMove(board, col))
                 continue;
 
-            Board temp = board;
-            makeMove(temp, col, HUMAN);
+            int row = makeMove(board, col, HUMAN);
 
-            int score = minimax(temp, depth - 1, alpha, beta, true);
+            int score = minimax(board, depth - 1, alpha, beta, true);
+            undoMove(board, col, row);
 
             minEval = std::min(minEval, score);
             if (USE_ALPHA_BETA)
@@ -354,7 +391,8 @@ int minimax(Board board, int depth, int alpha, int beta, bool maximizingPlayer)
 int getBestMove(Board board, int depth = MAX_DEPTH) // calls minimax for each valid move to find best spot
 {
     int bestScore = std::numeric_limits<int>::min();
-    int bestCol = 0;
+    int bestCol = -1;
+    bool moveFound = false;
 
     // Check for immediate winning move
     if (USE_EARLY_WIN)
@@ -364,9 +402,10 @@ int getBestMove(Board board, int depth = MAX_DEPTH) // calls minimax for each va
             int col = columnOrder[idx];
             if (!isValidMove(board, col))
                 continue;
-            Board temp = board;
-            makeMove(temp, col, AI);
-            if (checkWin(temp, AI))
+            int row = makeMove(board, col, AI);
+            bool win = checkWin(board, AI);
+            undoMove(board, col, row);
+            if (win)
             {
                 std::cout << "AI moves to column " << col << ": immediate win" << std::endl;
                 return col;
@@ -379,10 +418,11 @@ int getBestMove(Board board, int depth = MAX_DEPTH) // calls minimax for each va
         int col = columnOrder[idx];
         if (!isValidMove(board, col))
             continue;
-        Board temp = board;
-        makeMove(temp, col, AI);
-        int score = minimax(temp, depth - 1,
+        moveFound = true; // track that at least one move existed so we can signal draws cleanly
+        int row = makeMove(board, col, AI);
+        int score = minimax(board, depth - 1,
                             std::numeric_limits<int>::min(), std::numeric_limits<int>::max(), false);
+        undoMove(board, col, row);
         if (score > 99999)
             std::cout << "Col " << col << ": " << score << " Ai wins in " << MAX_DEPTH - score + 100000 << " turns " << std::endl;
         else if (score < -99999)
@@ -397,7 +437,7 @@ int getBestMove(Board board, int depth = MAX_DEPTH) // calls minimax for each va
         if (score == WIN_SCORE + MAX_DEPTH - 1)
             break; // if you won just quit. Why check other moves..
     }
-    return bestCol;
+    return moveFound ? bestCol : -1; // a -1 tells the caller the board is full -> draw
 }
 
 int main(int argc, char *argv[])
@@ -454,6 +494,11 @@ int main(int argc, char *argv[])
                         std::cout << "You win!\n";
                         gameOver = true;
                     }
+                    else if (!hasValidMove(board))
+                    {
+                        std::cout << "Draw!\n";
+                        gameOver = true; // notify human immediately when the board fills up
+                    }
                     else
                     {
                         currentPlayer = AI;
@@ -470,14 +515,27 @@ int main(int argc, char *argv[])
             auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();
             std::cout << "MiniMax runtime: " << ms << " ms\n";
 
-            makeMove(board, aiCol, AI);
-            std::cout << "AI moves to column " << aiCol << "\n";
-            if (checkWin(board, AI))
+            if (aiCol == -1)
             {
-                std::cout << "AI wins!\n";
+                std::cout << "AI reports draw.\n";
                 gameOver = true;
             }
-            currentPlayer = HUMAN;
+            else
+            {
+                makeMove(board, aiCol, AI);
+                std::cout << "AI moves to column " << aiCol << "\n";
+                if (checkWin(board, AI))
+                {
+                    std::cout << "AI wins!\n";
+                    gameOver = true;
+                }
+                else if (!hasValidMove(board))
+                {
+                    std::cout << "Draw!\n";
+                    gameOver = true;
+                }
+                currentPlayer = HUMAN;
+            }
         }
 
         drawBoard(window, board);
