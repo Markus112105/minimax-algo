@@ -10,11 +10,16 @@ An interactive Connect 4 game powered by an optimized minimax search. The SFML f
 - Sample board states (`firstBoard.txt`, `midRow.txt`, `nearWin.txt`) for quick regression checks.
 
 ## Prerequisites
-- Linux environment with a C++17-capable compiler (tested with `g++`).
-- SFML graphics libraries. Install via apt if needed:
+- Linux or macOS environment with a C++17-capable compiler (tested with `g++`).
+- SFML graphics libraries. Install via your package manager and ensure `pkg-config` is available so the Makefile can locate headers/libraries automatically:  
+  **Debian/Ubuntu**
   ```bash
   sudo apt update
-  sudo apt install libsfml-dev
+  sudo apt install libsfml-dev pkg-config
+  ```
+  **macOS (Homebrew)**
+  ```bash
+  brew install sfml pkg-config
   ```
 
 ## Build

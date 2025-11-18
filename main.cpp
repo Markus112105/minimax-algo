@@ -56,7 +56,7 @@ void drawBoard(sf::RenderWindow &window, const Board &board)
         static bool fontLoaded = false;
         if (!fontInitialized)
         {
-            fontLoaded = labelFont.loadFromFile(ARIAL);
+            fontLoaded = labelFont.openFromFile(ARIAL);
             if (!fontLoaded)
             {
                 std::cerr << "Failed to load Arial\n";
@@ -67,12 +67,13 @@ void drawBoard(sf::RenderWindow &window, const Board &board)
         {
             if (!fontLoaded)
                 break;
-            sf::Text label;
-            label.setFont(labelFont);
+            sf::Text label(labelFont);
             label.setString(std::to_string(c));
             label.setCharacterSize(24);
             label.setFillColor(sf::Color::White);
-            label.setPosition(c * CELL_SIZE + TOP_MARGIN, 5);
+            label.setPosition(sf::Vector2f(
+                static_cast<float>(c * CELL_SIZE + TOP_MARGIN),
+                5.f));
             window.draw(label);
         }
     }
@@ -83,7 +84,9 @@ void drawBoard(sf::RenderWindow &window, const Board &board)
         {
             sf::CircleShape circle(RADIUS);
             circle.setFillColor(getColor(board[r][c]));
-            circle.setPosition(c * CELL_SIZE + 10, r * CELL_SIZE + TOP_MARGIN); // Shift down to make space for labels
+            circle.setPosition(sf::Vector2f(
+                static_cast<float>(c * CELL_SIZE + 10),
+                static_cast<float>(r * CELL_SIZE + TOP_MARGIN))); // Shift down to make space for labels
             window.draw(circle);
         }
     }
@@ -463,45 +466,54 @@ int main(int argc, char *argv[])
         for (int i = 0; i < COLS; ++i)
             columnOrder.push_back(i);
     }
-    sf::RenderWindow window(sf::VideoMode(WIDTH, HEIGHT), "Connect 4 SFML",
+    sf::Vector2u windowSize(static_cast<unsigned int>(WIDTH), static_cast<unsigned int>(HEIGHT));
+    sf::RenderWindow window(sf::VideoMode(windowSize), "Connect 4 SFML",
                             sf::Style::Titlebar | sf::Style::Close); // Disallow resizing (causes drop bugs) and allow closing
 
     // Center window on screen (normally spawns on bottom)
     sf::VideoMode desktop = sf::VideoMode::getDesktopMode();
     window.setPosition(sf::Vector2i(
-        (desktop.width - WIDTH) / 2,
-        (desktop.height - HEIGHT) / 2));
+        (static_cast<int>(desktop.size.x) - WIDTH) / 2,
+        (static_cast<int>(desktop.size.y) - HEIGHT) / 2));
     Board board(ROWS, std::vector<int>(COLS, NONE));
     bool gameOver = false;
     int currentPlayer = HUMAN;
 
     while (window.isOpen())
     {
-        sf::Event event;
-        while (window.pollEvent(event))
+        while (auto event = window.pollEvent())
         {
-            if (event.type == sf::Event::Closed)
-                window.close();
-
-            if (!gameOver && currentPlayer == HUMAN && event.type == sf::Event::MouseButtonPressed && event.mouseButton.button == sf::Mouse::Left)
+            if (event->is<sf::Event::Closed>())
             {
-                int col = event.mouseButton.x / CELL_SIZE;
-                if (isValidMove(board, col))
+                window.close();
+                continue;
+            }
+
+            if (!gameOver && currentPlayer == HUMAN)
+            {
+                if (const auto *mousePressed = event->getIf<sf::Event::MouseButtonPressed>())
                 {
-                    makeMove(board, col, HUMAN);
-                    if (checkWin(board, HUMAN))
+                    if (mousePressed->button == sf::Mouse::Button::Left)
                     {
-                        std::cout << "You win!\n";
-                        gameOver = true;
-                    }
-                    else if (!hasValidMove(board))
-                    {
-                        std::cout << "Draw!\n";
-                        gameOver = true; // notify human immediately when the board fills up
-                    }
-                    else
-                    {
-                        currentPlayer = AI;
+                        int col = mousePressed->position.x / CELL_SIZE;
+                        if (isValidMove(board, col))
+                        {
+                            makeMove(board, col, HUMAN);
+                            if (checkWin(board, HUMAN))
+                            {
+                                std::cout << "You win!\n";
+                                gameOver = true;
+                            }
+                            else if (!hasValidMove(board))
+                            {
+                                std::cout << "Draw!\n";
+                                gameOver = true; // notify human immediately when the board fills up
+                            }
+                            else
+                            {
+                                currentPlayer = AI;
+                            }
+                        }
                     }
                 }
             }
