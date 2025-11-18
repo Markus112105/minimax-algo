@@ -89,3 +89,22 @@ Troubleshooting tips:
 - `MiniMax (1).pdf`, `pseudocode.txt` – design notes/reference material.
 
 Have fun exploring different heuristics, depths, and board setups to see how each optimization impacts Connect 4 strategy and runtime.
+
+## Minimax Pseudocode
+The original `pseudocode.txt` contents now live here for quick reference.
+
+```
+MINIMAX-VALUE(state, depth, maximizingPlayer)
+1  if gameOver(state) or depth = 0 //base cases
+2      return evalStrength(state)
+3  if maximizingPlayer //recursive step (maximizingPlayer)
+4      value = -INF
+5      for each child in SUCCESSORS(state)
+6          value = MAX(value, MINIMAX-VALUE(child, depth - 1, FALSE))
+7      return value
+8  else               //recursive step (mimizingPlayer)
+9      value = +INF
+10     for each child in SUCCESSORS(state)
+11         value = MIN(value, MINIMAX-VALUE(child, depth - 1, TRUE))
+12     return value
+```
