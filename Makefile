@@ -15,20 +15,14 @@ else
 SFML_LIBS ?= $(SFML_PKGCONFIG_LIBS)
 endif
 
-BIN_DIR ?= build
-CONNECT4 := $(BIN_DIR)/connect4
+TARGET ?= connect4
 
-.PHONY: all connect4 clean
+.PHONY: all $(TARGET) clean
 
-all: $(CONNECT4)
+all: $(TARGET)
 
-$(BIN_DIR):
-	mkdir -p $(BIN_DIR)
-
-$(CONNECT4): main.cpp | $(BIN_DIR)
+$(TARGET): main.cpp
 	$(CXX) $(CXXFLAGS) $< -o $@ $(SFML_LIBS)
 
-connect4: $(CONNECT4)
-
 clean:
-	rm -rf $(BIN_DIR)
+	rm -f $(TARGET)

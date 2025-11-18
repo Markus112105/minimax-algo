@@ -25,7 +25,7 @@ NOTE: only designed for zero sum games because of the assumption with minimax th
   ```
 
 ## Build
-Use the provided `Makefile` (defaults to `build/` as the output directory and `-std=c++17`).
+Use the provided `Makefile` (`-std=c++17` by default). It now writes the executable directly to the repository root as `./connect4`.
 
 ```bash
 # Build the SFML client
@@ -35,12 +35,10 @@ make all
 make connect4
 ```
 
-Executables are placed under `build/` by default (`build/connect4`). Override `BIN_DIR` when invoking `make` if you prefer a different location, e.g. `make BIN_DIR=. all`.
-
 ## Run the game
-Launch the executable with three feature toggles (1 = enable, 0 = disable):
+Launch the executable (produced in the project root) with three feature toggles (1 = enable, 0 = disable):
 ```bash
-./build/connect4 <alpha-beta> <mid-row-first> <early-win>
+./connect4 <alpha-beta> <mid-row-first> <early-win>
 ```
 
 | Arg | Toggle | Description |
@@ -50,9 +48,9 @@ Launch the executable with three feature toggles (1 = enable, 0 = disable):
 | `early-win` | Early-Win Detection | Checks for immediate wins/losses before deepening the tree. |
 
 Examples:
-- All optimizations: `./build/connect4 1 1 1`
-- Alpha-Beta only: `./build/connect4 1 0 0`
-- Mid-row ordering only: `./build/connect4 0 1 0`
+- All optimizations: `./connect4 1 1 1`
+- Alpha-Beta only: `./connect4 1 0 0`
+- Mid-row ordering only: `./connect4 0 1 0`
 
 Recommended depths (`main.cpp:MAX_DEPTH` macro):
 - **No optimizations:** Depth 6 for responsive play, absolute max ~9–11 (very slow).
