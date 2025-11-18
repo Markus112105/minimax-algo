@@ -1,6 +1,10 @@
 # Connect 4 Minimax AI
 
 An interactive Connect 4 game powered by an optimized minimax search. The SFML front end lets you play against the AI while toggling the major pruning heuristics from the command line. A separate tester lets you benchmark individual board states and capture runtime statistics.
+## Simple Algo Explanation
+
+Minimax is an algorithm that assumes both players play perfectly—one trying to win, the other trying to ruin that win—and picks the move that leads to the best possible outcome even if the opponent plays optimally. So you are maximizing your score and minimizing the opponent score.
+NOTE: only designed for zero sum games because of the assumption with minimax that "What is good for me is equally bad for my opponent."
 
 ## Features
 - SFML-powered Connect 4 board with click-to-drop controls and optional column labels.
