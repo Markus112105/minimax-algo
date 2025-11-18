@@ -86,12 +86,8 @@ Troubleshooting tips:
 - `tester.cpp` – headless benchmarking harness.
 - `*.txt` – sample boards for reproducing positions.
 - `results.csv` – default output from the tester.
-- `MiniMax (1).pdf`, `pseudocode.txt` – design notes/reference material.
-
-Have fun exploring different heuristics, depths, and board setups to see how each optimization impacts Connect 4 strategy and runtime.
 
 ## Minimax Pseudocode
-The original `pseudocode.txt` contents now live here for quick reference.
 
 ```
 MINIMAX-VALUE(state, depth, maximizingPlayer)
