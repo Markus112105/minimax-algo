@@ -64,9 +64,6 @@ Recommended depths (`main.cpp:MAX_DEPTH` macro):
 
 Update the values and rebuild to experiment with deeper searches or on-screen hints. If you enable labels, be sure `ARIAL` points to a font that exists on your system.
 
-## Project layout
-- `main.cpp` – SFML game loop + minimax AI.
-
 ## Minimax Pseudocode
 
 ```
